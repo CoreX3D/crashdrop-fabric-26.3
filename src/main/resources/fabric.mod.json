@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "crashdrop",
+  "version": "${version}",
+  "name": "CrashDrop",
+  "description": "Shared item-stake crash rounds, smooth live chart and server-authoritative cashout for Minecraft 26.3.",
+  "authors": ["CoreX3D"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["dev.core.crashdrop.CrashDrop"],
+    "client": ["dev.core.crashdrop.client.CrashDropClient"]
+  },
+  "depends": {"fabricloader": ">=0.19.5", "minecraft": "26.3", "java": ">=25", "fabric-api": ">=0.164.0"}
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "crashdrop-test",
+  "version": "${version}",
+  "name": "CrashDrop native tests",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-gametest": [
+      "dev.core.crashdrop.gametest.CrashDropGameTests"
+    ]
+  },
+  "depends": { "crashdrop": "*", "fabric-gametest-api-v1": "*" }
+}

@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "R": "minecraft:redstone",
+    "E": "minecraft:emerald"
+  },
+  "pattern": [
+    "IRI",
+    "RER",
+    "IRI"
+  ],
+  "result": {
+    "id": "crashdrop:terminal",
+    "count": 1
+  }
+}

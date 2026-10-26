@@ -1,0 +1,100 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+version = mod_version
+group = 'dev.core'
+base { archivesName = 'crashdrop-fabric-26.3' }
+repositories {
+    if (providers.gradleProperty('fabricApiMirror').isPresent()) {
+        maven {
+            url = uri(providers.gradleProperty('fabricApiMirror').get())
+            content { includeGroup 'net.fabricmc.fabric-api' }
+            metadataSources { mavenPom(); artifact() }
+        }
+    }
+    mavenCentral()
+}
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    withSourcesJar()
+}
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}
+tasks.named('jar') { from('LICENSE') }
+tasks.named('sourcesJar') { from('LICENSE') }
+test { useJUnitPlatform() }
+tasks.register('writeCompileClasspath') {
+    doLast {
+        file('build').mkdirs()
+        file('build/compile-classpath.txt').text = configurations.compileClasspath.asPath
+    }
+}
+if (providers.gradleProperty('enableGameTests').map { it.toBoolean() }.getOrElse(false)) {
+    def clientTests = providers.gradleProperty('enableClientGameTests').map { it.toBoolean() }.getOrElse(false)
+    fabricApi {
+        configureTests {
+            createSourceSet = true
+            modId = 'crashdrop-test'
+            enableGameTests = true
+            enableClientGameTests = clientTests
+        }
+    }
+    dependencies {
+        if (providers.gradleProperty('fabricApiMirror').isPresent()) {
+            gametestImplementation("net.fabricmc.fabric-api:fabric-gametest-api-v1:${providers.gradleProperty('gameTestApiVersion').getOrElse('4.0.34+3434d6d95d')}") { transitive = false }
+            if (clientTests) gametestImplementation("net.fabricmc.fabric-api:fabric-client-gametest-api-v1:${providers.gradleProperty('clientGameTestApiVersion').getOrElse('6.0.9+4be74c3f5d')}") { transitive = false }
+        }
+    }
+    tasks.named('processGametestResources') {
+        inputs.property 'version', project.version
+        inputs.property 'clientTests', clientTests
+        inputs.property 'clientTestEntrypoint', providers.gradleProperty('clientTestEntrypoint').getOrElse('dev.core.crashdrop.gametest.CrashDropClientGameTest')
+        filesMatching('fabric.mod.json') { expand version: project.version }
+        doLast {
+            if (clientTests) {
+                def descriptor = new File(destinationDir, 'fabric.mod.json')
+                def data = new groovy.json.JsonSlurper().parse(descriptor)
+                data.entrypoints['fabric-client-gametest'] = [providers.gradleProperty('clientTestEntrypoint').getOrElse('dev.core.crashdrop.gametest.CrashDropClientGameTest')]
+                descriptor.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(data)) + '\n'
+            }
+        }
+    }
+    loom.runs.named('gameTest') { property 'fabric-api.gametest.report-file', file('build/reports/gametest/results.xml').absolutePath }
+    if (clientTests) {
+        sourceSets.gametest.java.srcDir('src/clientGametest/java')
+        loom.runs.named('clientGameTest') {
+            runDir 'build/client-render-smoke'
+            if (providers.gradleProperty('profileModsDir').isPresent()) {
+                def extras = file(providers.gradleProperty('profileModsDir').get()).canonicalFile
+                ['build/client-render-smoke', 'build/run/gameTest'].each { cleared ->
+                    if (extras.toPath().startsWith(file(cleared).canonicalFile.toPath())) throw new GradleException('Stage profile mods outside disposable test run directories.')
+                }
+                def required = []
+                extras.eachFileMatch(~/.*\.jar/) { modJar ->
+                    new java.util.zip.ZipFile(modJar).withCloseable { archive ->
+                        def descriptor = archive.getEntry('fabric.mod.json')
+                        if (descriptor != null) archive.getInputStream(descriptor).withCloseable { input ->
+                            def meta = new groovy.json.JsonSlurper().parse(input)
+                            if (meta.environment == null || meta.environment in ['*', 'client']) required.add(meta.id)
+                        }
+                    }
+                }
+                property 'fabric.modsFolder', extras.absolutePath
+                property 'crashdrop.test.requiredMods', required.unique().sort().join(',')
+            }
+        }
+    }
+}
